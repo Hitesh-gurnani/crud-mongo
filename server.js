@@ -1,57 +1,8 @@
-const { log } = require('console');
-const express = require('express');
-const app = express();
-app.use(express.json());
-
-const userRouter = express.Router();
-const authRouter = express.Router();
 const mongoose = require('mongoose')
-app.use('/user', userRouter)
-
-userRouter
-    .route('/')
-    .get(getUser)
-    .post(postUser)
-    .patch(updateUser)
-    .delete(deleteuser)
-
-async function getUser(req, res) {
-    let allusers = await userModel.findOne({ name: 'jasbeeer' })
-    res.json({
-        message: 'list of all users',
-        data: allusers
-    })
-}
-async function postUser(req, res) {
-    let data = req.body;
-    let user = await userModel.create(data);
-    //console.log(users)
-    res.json({
-        message: "data recieved",
-        data: user
-    })
-}
-async function updateUser(req, res) {
-    console.log('req body -> data' + req.body);
-    //update data 
-    let datatobeupdated = req.body;
-    let user = await userModel.findOneAndUpdate({
-        email: "hit@gmail.com"
-    }, datatobeupdated)
-    res.json({
-        message: "data updated successfully :)"
-    })
-}
-async function deleteuser(req, res) {
-    let datatobedeleted = req.body;
-    const data = await userModel.findOneAndDelete(datatobedeleted)
-    res.json({
-        "message": "data is deleted now :)",
-        "data": data
-    })
-}
-
+const emailValidator = require("email-validator");
 const db_link = 'mongodb://127.0.0.1:27017'
+const bcrypt = require('bcryptjs')
+
 mongoose.connect(db_link, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(function () {
         console.log('db connect')
@@ -70,7 +21,10 @@ const userSchema = mongoose.Schema({
     {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        validate: function () {
+            return emailValidator.validate(this.email)
+        }
     },
     password:
     {
@@ -81,10 +35,23 @@ const userSchema = mongoose.Schema({
     confirmPassword:
     {
         type: String,
-        required: true
+        required: true,
+        validate: function () {
+            return this.confirmPassword == this.password
+        }
+
     }
 })
-
+userSchema.pre('save', function () {
+    this.confirmPassword = undefined;
+})
+userSchema.pre('save', async function () {
+    let salt = await bcrypt.genSalt()
+    let hashedString = await bcrypt.hash(this.password, salt);
+    this.password = hashedString
+})
+userSchema.post('save', function (doc) {
+    console.log('after saving in database', doc);
+})
 const userModel = mongoose.model('userModel', userSchema);
-
-app.listen(3000);
+module.exports = userModel
